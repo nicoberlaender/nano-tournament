@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import session, generate, users, websocket
 from models.database import init_db
-import load_dotenv
+from dotenv import load_dotenv
 import os
 
 load_dotenv()
