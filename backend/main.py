@@ -1,14 +1,24 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from backend.routers import chat, docs, avatar
-from backend.models.database import init_db
+from routers import session, generate
+from models.database import init_db
 import os
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    await init_db()
+    yield
+    # Shutdown (if needed)
+
+
 app = FastAPI(
-    title="AI Documentation Journey API",
-    description="Backend API for AI-powered documentation explorer",
+    title="Nano Tournament API",
+    description="Backend API for mobile fighting game with AI-generated characters",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Configure CORS for frontend
@@ -21,14 +31,8 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(chat.router)
-app.include_router(docs.router)
-app.include_router(avatar.router)
-
-
-@app.on_event("startup")
-async def startup_event():
-    await init_db()
+app.include_router(session.router)
+app.include_router(generate.router)
 
 
 @app.get("/")

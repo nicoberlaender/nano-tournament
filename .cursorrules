@@ -1,0 +1,114 @@
+# Nano Tournament - Mobile Fighting Game
+
+## Project Overview
+We are building a mobile fighting game where two players, each on their mobile phone, fight against each other using characters they create by prompting an AI image generator.
+
+## Tech Stack
+- **Backend**: FastAPI with Python
+- **Database**: SQLite
+- **Frontend**: Next.js with React (mobile-responsive)
+- **Styling**: Tailwind CSS
+- **UI Components**: Shadcn/ui
+
+## Backend Architecture (FastAPI)
+
+### Database Schema
+- Use SQLite as the primary database
+- Models should include:
+  - Session (game sessions)
+  - User (player information)
+  - Character (generated characters with image URLs)
+  - Battle (fight records)
+
+### Required API Endpoints
+
+#### 1. Create Session
+- **Endpoint**: `POST /session`
+- **Purpose**: Creates a new game session
+- **Response**: Returns session ID and session details
+- **Fields**: 
+  - session_id (UUID)
+  - created_at (timestamp)
+  - status (waiting/active/completed)
+
+#### 2. Generate Character
+- **Endpoint**: `POST /generate`
+- **Purpose**: Receives a prompt and generates a character image
+- **Request Body**:
+  - prompt (string) - description of the character
+  - session_id (UUID) - the game session
+  - user_id (string) - player identifier
+- **Response**: Returns generated character image URL and metadata
+- **Fields**:
+  - character_id (UUID)
+  - image_url (string)
+  - prompt_used (string)
+  - generated_at (timestamp)
+
+### Backend Guidelines
+- Use Pydantic models for request/response validation
+- Implement proper error handling and HTTP status codes
+- Use async/await for database operations
+- Follow RESTful API conventions
+- Add CORS middleware for frontend communication
+
+## Frontend Architecture (Next.js)
+
+### Mobile-First Design
+- Responsive design optimized for mobile phones
+- Touch-friendly UI elements
+- Portrait orientation primary
+- Fast loading and smooth animations
+
+### Key Features
+- Character creation interface with prompt input
+- Real-time session management
+- Character preview and selection
+- Battle interface (to be implemented later)
+
+### Frontend Guidelines
+- Use TypeScript for type safety
+- Implement proper state management
+- Use Tailwind CSS for styling
+- Leverage Shadcn/ui components
+- Ensure mobile responsiveness
+- Add proper loading states and error handling
+
+## Development Principles
+- Write clean, maintainable code
+- Use proper TypeScript types
+- Implement error boundaries
+- Add proper logging
+- Follow REST API best practices
+- Ensure mobile performance optimization
+
+## File Structure
+```
+backend/
+├── main.py (FastAPI app)
+├── models/
+│   └── database.py (SQLite models)
+├── routers/
+│   ├── session.py (session endpoints)
+│   └── generate.py (character generation)
+└── requirements.txt
+
+frontend/
+├── app/ (Next.js app router)
+├── components/ (reusable components)
+├── services/ (API calls)
+└── context/ (state management)
+```
+
+## Next Steps
+1. Implement the two required endpoints in FastAPI
+2. Create corresponding frontend interfaces
+3. Set up character generation service integration
+4. Build mobile-optimized UI for character creation
+5. Implement session management and real-time updates
+
+## Notes
+- Focus on mobile user experience
+- Keep the character generation process simple and intuitive
+- Ensure fast response times for API calls
+- Plan for real-time features (WebSockets for battles)
