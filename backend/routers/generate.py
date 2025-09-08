@@ -1,13 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select
 from pydantic import BaseModel
 from datetime import datetime
 from models.database import Session, User, Character, get_db
 from utils.image_generation import generate_character_image
 from utils.websocket_manager import manager
 import uuid
-import base64
 
 router = APIRouter(prefix="/generate", tags=["generate"])
 
@@ -18,19 +17,7 @@ class GenerateCharacterRequest(BaseModel):
     user_id: str
 
 
-class GenerateCharacterResponse(BaseModel):
-    character_id: str
-    session_id: str
-    user_id: str
-    prompt_used: str
-    generated_at: datetime
-    image_base64: str  # Base64 encoded image for easy frontend consumption
-
-    class Config:
-        from_attributes = True
-
-
-@router.post("/", response_model=GenerateCharacterResponse)
+@router.post("/")
 async def generate_character(
     request: GenerateCharacterRequest, db: AsyncSession = Depends(get_db)
 ):
@@ -41,77 +28,63 @@ async def generate_character(
         request: Contains prompt, session_id, and user_id
 
     Returns:
-        GenerateCharacterResponse: The created character with image data
+        Raw image data with appropriate content type
     """
-    try:
-        # Validate session exists
-        session_result = await db.execute(
-            select(Session).where(Session.id == request.session_id)
+    # Validate session exists
+    session_result = await db.execute(
+        select(Session).where(Session.id == request.session_id)
+    )
+    session = session_result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Validate user exists
+    user_result = await db.execute(select(User).where(User.id == request.user_id))
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Validate user is part of the session
+    if session.player1_id != request.user_id and session.player2_id != request.user_id:
+        raise HTTPException(status_code=403, detail="User is not part of this session")
+
+    # Check if user already has a character in this session
+    existing_char_result = await db.execute(
+        select(Character).where(
+            Character.session_id == request.session_id,
+            Character.user_id == request.user_id,
         )
-        session = session_result.scalar_one_or_none()
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
+    )
+    existing_character = existing_char_result.scalar_one_or_none()
 
-        # Validate user exists
-        user_result = await db.execute(select(User).where(User.id == request.user_id))
-        user = user_result.scalar_one_or_none()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-
-        # Validate user is part of the session
-        if (
-            session.player1_id != request.user_id
-            and session.player2_id != request.user_id
-        ):
-            raise HTTPException(
-                status_code=403, detail="User is not part of this session"
-            )
-
-        # Generate character image
-        try:
-            image_data = generate_character_image(request.prompt)
-        except Exception as e:
-            raise HTTPException(
-                status_code=500, detail=f"Failed to generate image: {str(e)}"
-            )
-
-        # Create character record
-        new_character = Character(
-            id=str(uuid.uuid4()),
-            session_id=request.session_id,
-            user_id=request.user_id,
-            image_data=image_data,
-            prompt_used=request.prompt,
-        )
-
-        # Add to database
-        db.add(new_character)
-        await db.commit()
-        await db.refresh(new_character)
-
-        # Check if both players now have characters and auto-start battle
-        await _check_and_start_battle_if_ready(db, session)
-
-        # Convert image to base64 for response
-        image_base64 = base64.b64encode(image_data).decode("utf-8")
-
-        return GenerateCharacterResponse(
-            character_id=new_character.id,
-            session_id=new_character.session_id,
-            user_id=new_character.user_id,
-            prompt_used=new_character.prompt_used,
-            generated_at=new_character.generated_at,
-            image_base64=image_base64,
-        )
-
-    except HTTPException:
-        await db.rollback()
-        raise
-    except Exception as e:
-        await db.rollback()
+    if existing_character:
         raise HTTPException(
-            status_code=500, detail=f"Failed to generate character: {str(e)}"
+            status_code=400,
+            detail="Player already has a character in this session. Only one character per player is allowed.",
         )
+
+    # Generate character image
+    image_data = generate_character_image(request.prompt)
+
+    # Create character record
+    new_character = Character(
+        id=str(uuid.uuid4()),
+        session_id=request.session_id,
+        user_id=request.user_id,
+        image_data=image_data,
+        prompt_used=request.prompt,
+    )
+
+    # Add to database
+    db.add(new_character)
+    await db.commit()
+    await db.refresh(new_character)
+
+    # Check if both players now have characters and auto-start battle
+    await _check_and_start_battle_if_ready(db, session)
+
+    # Return image as binary response
+    return Response(content=image_data, media_type="image/png")  # Assuming PNG format
 
 
 @router.get("/{character_id}/image")
@@ -125,28 +98,20 @@ async def get_character_image(character_id: str, db: AsyncSession = Depends(get_
     Returns:
         Raw image data with appropriate content type
     """
-    try:
-        # Get character
-        result = await db.execute(select(Character).where(Character.id == character_id))
-        character = result.scalar_one_or_none()
+    # Get character
+    result = await db.execute(select(Character).where(Character.id == character_id))
+    character = result.scalar_one_or_none()
 
-        if not character:
-            raise HTTPException(status_code=404, detail="Character not found")
+    if not character:
+        raise HTTPException(status_code=404, detail="Character not found")
 
-        if not character.image_data:
-            raise HTTPException(status_code=404, detail="Character image not found")
+    if not character.image_data:
+        raise HTTPException(status_code=404, detail="Character image not found")
 
-        # Return image as binary response
-        return Response(
-            content=character.image_data, media_type="image/png"  # Assuming PNG format
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve character image: {str(e)}"
-        )
+    # Return image as binary response
+    return Response(
+        content=character.image_data, media_type="image/png"  # Assuming PNG format
+    )
 
 
 async def _check_and_start_battle_if_ready(db: AsyncSession, session: Session):
@@ -161,25 +126,25 @@ async def _check_and_start_battle_if_ready(db: AsyncSession, session: Session):
     if session.status != "active" or not session.player2_id:
         return
 
-    # Count characters for each player in this session
-    player1_char_count = await db.execute(
-        select(func.count(Character.id)).where(
+    # Check if both players have created their characters (exactly one each)
+    player1_char_result = await db.execute(
+        select(Character).where(
             Character.session_id == session.id,
             Character.user_id == session.player1_id,
         )
     )
-    player1_chars = player1_char_count.scalar()
+    player1_character = player1_char_result.scalar_one_or_none()
 
-    player2_char_count = await db.execute(
-        select(func.count(Character.id)).where(
+    player2_char_result = await db.execute(
+        select(Character).where(
             Character.session_id == session.id,
             Character.user_id == session.player2_id,
         )
     )
-    player2_chars = player2_char_count.scalar()
+    player2_character = player2_char_result.scalar_one_or_none()
 
-    # If both players have at least one character, start the battle
-    if player1_chars > 0 and player2_chars > 0:
+    # If both players have created their character, start the battle
+    if player1_character and player2_character:
         # Update session status to battle
         session.status = "battle"
         await db.commit()
