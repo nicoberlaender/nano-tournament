@@ -108,8 +108,8 @@ async def join_session(
         raise HTTPException(status_code=404, detail="Session not found")
 
     # Check if session is already full
-    if session.player2_id is not None:
-        raise HTTPException(status_code=400, detail="Session is already full")
+    # if session.player2_id is not None:
+    #     raise HTTPException(status_code=400, detail="Session is already full")
 
     # Check if user is trying to join their own session
     if session.player1_id == request.user_id:

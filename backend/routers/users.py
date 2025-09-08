@@ -9,6 +9,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 class CreateUserRequest(BaseModel):
+    user_id: str
     name: str
 
 
@@ -23,10 +24,10 @@ class UserResponse(BaseModel):
 @router.post("/", response_model=UserResponse)
 async def create_user(request: CreateUserRequest, db: AsyncSession = Depends(get_db)):
     """
-    Create a new user with the provided name as the user ID.
+    Create a new user with the provided user_id (name is stored as user_id for now).
 
     Args:
-        request: Contains the name that will be used as the user ID
+        request: Contains the user_id and name
 
     Returns:
         UserResponse: The created user with ID and timestamp
@@ -36,16 +37,17 @@ async def create_user(request: CreateUserRequest, db: AsyncSession = Depends(get
     """
     try:
         # Check if user already exists
-        result = await db.execute(select(User).where(User.id == request.name))
+        result = await db.execute(select(User).where(User.id == request.user_id))
         existing_user = result.scalar_one_or_none()
 
         if existing_user:
-            raise HTTPException(
-                status_code=400, detail="User with this name already exists"
+            return UserResponse(
+                user_id=existing_user.id,
+                created_at=existing_user.created_at,
             )
 
-        # Create new user with name as ID
-        new_user = User(id=request.name)
+        # Create new user (user_id acts as name for now)
+        new_user = User(id=request.user_id)
 
         # Add to database
         db.add(new_user)

@@ -41,7 +41,7 @@ export default function BattleSession() {
   );
   const [isConnected, setIsConnected] = useState(false);
   const [userId] = useState(
-    () => `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    () => `user_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
   );
 
   // WebSocket connection and event handlers
@@ -80,6 +80,14 @@ export default function BattleSession() {
       setGameState("prompt");
     };
 
+    const handleAllCharactersReady = (data: any) => {
+      console.log("All characters ready:", data);
+      // Transition from waiting to battle
+      if (gameState === "waiting") {
+        setGameState("battle");
+      }
+    };
+
     const handleBattleStart = (data: any) => {
       console.log("Battle started:", data);
       setGameState("battle");
@@ -115,20 +123,45 @@ export default function BattleSession() {
       setParticipants((prev) => prev.filter((p) => p.id !== data.user_id));
     };
 
+    const handleParticipants = (data: any) => {
+      if (Array.isArray(data.participants)) {
+        setParticipants((prev) => {
+          const map = new Map(prev.map((p) => [p.id, p]));
+          data.participants.forEach((id: string) => {
+            if (!map.has(id)) {
+              map.set(id, { id, name: id, joinedAt: new Date() });
+            }
+          });
+          return Array.from(map.values());
+        });
+      }
+    };
+
+    const handleError = (data: any) => {
+      console.error("Socket error:", data);
+      // Could show error message to user
+    };
+
     api.on("round_start", handleRoundStart);
+    api.on("all_characters_ready", handleAllCharactersReady);
     api.on("battle_start", handleBattleStart);
     api.on("results", handleResults);
     api.on("user_joined_session", handleUserJoined);
     api.on("user_left_session", handleUserLeft);
+    api.on("session_participants", handleParticipants);
+    api.on("error", handleError);
 
     return () => {
       api.off("round_start", handleRoundStart);
+      api.off("all_characters_ready", handleAllCharactersReady);
       api.off("battle_start", handleBattleStart);
       api.off("results", handleResults);
       api.off("user_joined_session", handleUserJoined);
       api.off("user_left_session", handleUserLeft);
+      api.off("session_participants", handleParticipants);
+      api.off("error", handleError);
     };
-  }, []);
+  }, [gameState]);
 
   // Add current player to participants when joining
   useEffect(() => {
@@ -139,7 +172,6 @@ export default function BattleSession() {
       ]);
     }
   }, [gameState, currentPlayer]);
-
 
   const handleJoinSession = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,7 +184,7 @@ export default function BattleSession() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
       // First, try to create user
-      const userResponse = await fetch(`${apiUrl}/users/`, {
+      await fetch(`${apiUrl}/users/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -161,39 +193,58 @@ export default function BattleSession() {
         }),
       });
 
-      // Try to join existing session, or create one if needed
-      let sessionResponse;
-      try {
-        sessionResponse = await fetch(`${apiUrl}/session/${sessionId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: userId }),
-        });
-      } catch (error) {
-        // Session might not exist, create it
-        sessionResponse = await fetch(`${apiUrl}/session/`, {
+      // Join existing session or create new one
+      let activeSessionId: string | undefined =
+        typeof sessionId === "string" ? sessionId : undefined;
+
+      if (activeSessionId) {
+        const joinRes = await fetch(
+          `${apiUrl}/session/join/${activeSessionId}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: userId }),
+          }
+        );
+        if (!joinRes.ok) {
+          const createRes = await fetch(`${apiUrl}/session/`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: userId }),
+          });
+          if (!createRes.ok) throw new Error("Failed to create session");
+          const created = await createRes.json();
+          activeSessionId = created.session_id;
+        }
+      } else {
+        const createRes = await fetch(`${apiUrl}/session/`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_id: userId }),
         });
+        if (!createRes.ok) throw new Error("Failed to create session");
+        const created = await createRes.json();
+        activeSessionId = created.session_id;
       }
 
-      if (sessionResponse.ok) {
-        const newPlayer: Participant = {
-          id: userId,
-          name: playerName.trim(),
-          joinedAt: new Date(),
-        };
+      if (!activeSessionId) throw new Error("No active session id");
 
-        setCurrentPlayer(newPlayer);
-        setGameState("lobby");
+      const newPlayer: Participant = {
+        id: userId,
+        name: playerName.trim(),
+        joinedAt: new Date(),
+      };
 
-        // Join the WebSocket session
-        if (isConnected) {
-          api.joinSession(sessionId);
-        }
-      } else {
-        throw new Error("Failed to join session");
+      setCurrentPlayer(newPlayer);
+      setGameState("lobby");
+
+      if (activeSessionId !== sessionId) {
+        window.location.replace(`/battle/${activeSessionId}`);
+        return;
+      }
+
+      if (isConnected) {
+        api.joinSession(activeSessionId);
       }
     } catch (error) {
       console.error("Failed to join session:", error);
@@ -229,9 +280,15 @@ export default function BattleSession() {
       });
 
       if (response.ok) {
-        const data = await response.json();
-        setGeneratedImage(`data:image/png;base64,${data.image_base64}`);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        setGeneratedImage(url);
         setGameState("waiting");
+
+        // Notify backend that character is ready
+        if (isConnected) {
+          api.characterReady(sessionId);
+        }
       } else {
         throw new Error("Failed to generate character");
       }
@@ -242,6 +299,11 @@ export default function BattleSession() {
         "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='400' height='400' fill='%23FBF3B9'/%3E%3Ctext x='200' y='200' text-anchor='middle' dominant-baseline='middle' font-size='20' fill='%23000'%3EGenerated Character%3C/text%3E%3C/svg%3E"
       );
       setGameState("waiting");
+
+      // Notify backend that character is ready (even with fallback)
+      if (isConnected) {
+        api.characterReady(sessionId);
+      }
     } finally {
       setIsCreatingCharacter(false);
     }
@@ -249,7 +311,7 @@ export default function BattleSession() {
 
   const handleStartGame = async () => {
     if (!sessionId || participants.length < 2) return;
-    
+
     setIsStartingGame(true);
     try {
       api.startRound(sessionId);
@@ -578,7 +640,8 @@ export default function BattleSession() {
               <div className="flex items-center gap-4">
                 <div className="text-right">
                   <div className="text-2xl font-black text-black">
-                    {participants.find(p => p.id !== currentPlayer?.id)?.name || "Opponent"}
+                    {participants.find((p) => p.id !== currentPlayer?.id)
+                      ?.name || "Opponent"}
                   </div>
                 </div>
               </div>
@@ -656,7 +719,11 @@ export default function BattleSession() {
             <p className="text-2xl text-black font-bold mb-8">
               {battleResults.winner_user_id === userId
                 ? "You are the champion!"
-                : `Winner: ${participants.find(p => p.id === battleResults.winner_user_id)?.name || battleResults.winner_user_id}`}
+                : `Winner: ${
+                    participants.find(
+                      (p) => p.id === battleResults.winner_user_id
+                    )?.name || battleResults.winner_user_id
+                  }`}
             </p>
 
             {/* Battle Summary */}
