@@ -51,23 +51,45 @@ class ConnectionManager:
 
     async def send_personal_message(self, message: dict, user_id: str):
         """Send a message to a specific user"""
+        if user_id not in self.active_connections:
+            logger.warning(f"User {user_id} is not connected, skipping message")
+            return
+
         websocket = self.active_connections[user_id]
-        await websocket.send_text(
-            json.dumps({**message, "timestamp": datetime.now().isoformat()})
-        )
+        try:
+            await websocket.send_text(
+                json.dumps({**message, "timestamp": datetime.now().isoformat()})
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send message to user {user_id}: {e}")
+            # Remove the connection if it's stale
+            self.disconnect(user_id)
 
     async def send_session_message(self, message: dict, session_id: str):
         """Send a message to all participants in a session"""
+        if session_id not in self.session_participants:
+            logger.warning(
+                f"Session {session_id} has no participants, skipping message"
+            )
+            return
+
         participants = list(self.session_participants[session_id])
         for user_id in participants:
             await self.send_personal_message(message, user_id)
 
     async def broadcast_message(self, message: dict):
         """Send a message to all connected users"""
-        for user_id, websocket in self.active_connections.items():
-            await websocket.send_text(
-                json.dumps({**message, "timestamp": datetime.now().isoformat()})
-            )
+        # Create a copy of the items to avoid modification during iteration
+        connections_copy = list(self.active_connections.items())
+        for user_id, websocket in connections_copy:
+            try:
+                await websocket.send_text(
+                    json.dumps({**message, "timestamp": datetime.now().isoformat()})
+                )
+            except Exception as e:
+                logger.warning(f"Failed to broadcast message to user {user_id}: {e}")
+                # Remove the connection if it's stale
+                self.disconnect(user_id)
 
     def get_session_participants(self, session_id: str) -> List[str]:
         """Get list of participants in a session"""

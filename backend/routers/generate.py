@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from datetime import datetime
 from models.database import Session, User, Character, get_db
 from utils.image_generation import generate_character_image
+from utils.llm_service import judge_battle
 from utils.websocket_manager import manager
 import uuid
 
@@ -116,14 +117,14 @@ async def get_character_image(character_id: str, db: AsyncSession = Depends(get_
 
 async def _check_and_start_battle_if_ready(db: AsyncSession, session: Session):
     """
-    Check if both players have created characters and automatically start the battle.
+    Check if both players have created characters and automatically resolve the battle.
 
     Args:
         db: Database session
         session: The game session to check
     """
-    # Only proceed if session is active (has 2 players) and not already in battle
-    if session.status != "active" or not session.player2_id:
+    # Only proceed if session is active (has 2 players) and not already resolved
+    if session.status != "active" or not session.player2_id or session.winner_user_id:
         return
 
     # Check if both players have created their characters (exactly one each)
@@ -143,7 +144,7 @@ async def _check_and_start_battle_if_ready(db: AsyncSession, session: Session):
     )
     player2_character = player2_char_result.scalar_one_or_none()
 
-    # If both players have created their character, start the battle
+    # If both players have created their character, resolve the battle automatically
     if player1_character and player2_character:
         # Update session status to battle
         session.status = "battle"
@@ -159,6 +160,38 @@ async def _check_and_start_battle_if_ready(db: AsyncSession, session: Session):
             {
                 "type": "battle_start",
                 "session_id": session.id,
+            },
+            session.id,
+        )
+
+        # Use LLM judge to determine winner
+        judge_result = judge_battle(
+            player1_character_prompt=player1_character.prompt_used,
+            player2_character_prompt=player2_character.prompt_used,
+            battle_condition=session.condition or "Standard arena battle",
+            player1_id=session.player1_id,
+            player2_id=session.player2_id,
+        )
+
+        # Update session with battle results
+        session.winner_user_id = judge_result["winner_id"]
+        session.battle_script = judge_result["battle_script"]
+        session.battle_summary = judge_result["battle_summary"]
+        session.completed_at = datetime.utcnow()
+        session.status = "completed"
+
+        # Save to database
+        await db.commit()
+        await db.refresh(session)
+
+        # Send results event to all users in the session
+        await manager.send_session_message(
+            {
+                "type": "results",
+                "session_id": session.id,
+                "winner_user_id": judge_result["winner_id"],
+                "battle_script": judge_result["battle_script"],
+                "battle_summary": judge_result["battle_summary"],
             },
             session.id,
         )
