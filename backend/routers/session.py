@@ -26,6 +26,8 @@ class SessionResponse(BaseModel):
     created_at: datetime
     status: str
     condition: str | None
+    battle_video_url: str | None = None
+    has_confrontation_image: bool = False
 
     class Config:
         from_attributes = True
@@ -76,6 +78,8 @@ async def create_session(
         created_at=new_session.created_at,
         status=new_session.status,
         condition=new_session.condition,
+        battle_video_url=new_session.battle_video_url,
+        has_confrontation_image=bool(new_session.confrontation_image),
     )
 
 
@@ -135,6 +139,8 @@ async def join_session(
         created_at=session.created_at,
         status=session.status,
         condition=session.condition,
+        battle_video_url=session.battle_video_url,
+        has_confrontation_image=bool(session.confrontation_image),
     )
 
 
@@ -166,6 +172,8 @@ async def get_session(session_id: str, db: AsyncSession = Depends(get_db)):
         created_at=session.created_at,
         status=session.status,
         condition=session.condition,
+        battle_video_url=session.battle_video_url,
+        has_confrontation_image=bool(session.confrontation_image),
     )
 
 

@@ -52,6 +52,9 @@ backend/data/*.db
 *.db
 *.db-journal
 
+# Generated images (for testing/verification)
+backend/data/confrontations/
+
 # IDEs and editors
 .idea/
 .vscode/

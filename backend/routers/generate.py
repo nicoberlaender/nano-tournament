@@ -8,6 +8,9 @@ from utils.image_generation import generate_character_image
 from utils.llm_service import judge_battle
 from utils.websocket_manager import manager
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/generate", tags=["generate"])
 
@@ -81,11 +84,17 @@ async def generate_character(
     await db.commit()
     await db.refresh(new_character)
 
-    # Check if both players now have characters and auto-start battle
-    await _check_and_start_battle_if_ready(db, session)
+    # Return image as binary response immediately
+    response = Response(
+        content=image_data, media_type="image/png"
+    )  # Assuming PNG format
 
-    # Return image as binary response
-    return Response(content=image_data, media_type="image/png")  # Assuming PNG format
+    # Check if both players now have characters and auto-start battle (async, non-blocking)
+    import asyncio
+
+    asyncio.create_task(_check_and_start_battle_if_ready_background(request.session_id))
+
+    return response
 
 
 @router.get("/{character_id}/image")
@@ -113,6 +122,29 @@ async def get_character_image(character_id: str, db: AsyncSession = Depends(get_
     return Response(
         content=character.image_data, media_type="image/png"  # Assuming PNG format
     )
+
+
+async def _check_and_start_battle_if_ready_background(session_id: str):
+    """
+    Background task version that creates its own database session.
+
+    Args:
+        session_id: The session ID to check and potentially start battle for
+    """
+    from models.database import async_session
+
+    async with async_session() as db:
+        # Get the session
+        session_result = await db.execute(
+            select(Session).where(Session.id == session_id)
+        )
+        session = session_result.scalar_one_or_none()
+
+        if not session:
+            logger.error(f"Session {session_id} not found in background task")
+            return
+
+        await _check_and_start_battle_if_ready(db, session)
 
 
 async def _check_and_start_battle_if_ready(db: AsyncSession, session: Session):
@@ -173,10 +205,49 @@ async def _check_and_start_battle_if_ready(db: AsyncSession, session: Session):
             player2_id=session.player2_id,
         )
 
+        # Generate confrontation image and battle video
+        from utils.video_generation import generate_battle_video
+        from utils.image_generation import generate_confrontation_image
+
+        try:
+            # Validate character image data before proceeding
+            if not player1_character.image_data:
+                raise ValueError("Player 1 character has no image data")
+            if not player2_character.image_data:
+                raise ValueError("Player 2 character has no image data")
+
+            logger.info(
+                f"Player 1 image data size: {len(player1_character.image_data)} bytes"
+            )
+            logger.info(
+                f"Player 2 image data size: {len(player2_character.image_data)} bytes"
+            )
+
+            # First generate confrontation image using character images
+            logger.info("Generating AI confrontation image...")
+            confrontation_image = generate_confrontation_image(
+                character1_image=player1_character.image_data,
+                character2_image=player2_character.image_data,
+                battle_condition=session.condition or "Standard battle arena",
+            )
+
+            # Then generate battle video using the confrontation image
+            logger.info("Generating battle video...")
+            battle_video_url = generate_battle_video(
+                confrontation_image=confrontation_image,
+                battle_script=judge_result["battle_script"],
+            )
+        except Exception as e:
+            logger.error(f"Video/image generation failed: {e}")
+            confrontation_image = None
+            battle_video_url = None
+
         # Update session with battle results
         session.winner_user_id = judge_result["winner_id"]
         session.battle_script = judge_result["battle_script"]
         session.battle_summary = judge_result["battle_summary"]
+        session.battle_video_url = battle_video_url
+        session.confrontation_image = confrontation_image
         session.completed_at = datetime.utcnow()
         session.status = "completed"
 
@@ -192,6 +263,8 @@ async def _check_and_start_battle_if_ready(db: AsyncSession, session: Session):
                 "winner_user_id": judge_result["winner_id"],
                 "battle_script": judge_result["battle_script"],
                 "battle_summary": judge_result["battle_summary"],
+                "battle_video_url": battle_video_url,
+                "has_confrontation_image": bool(confrontation_image),
             },
             session.id,
         )

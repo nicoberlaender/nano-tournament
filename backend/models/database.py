@@ -57,6 +57,10 @@ class Session(Base):
         Text, nullable=True
     )  # LLM's detailed battle script for video generation
     battle_summary = Column(Text, nullable=True)  # LLM's battle description
+    battle_video_url = Column(Text, nullable=True)  # URL to the generated battle video
+    confrontation_image = Column(
+        LargeBinary, nullable=True
+    )  # Generated confrontation image
     completed_at = Column(DateTime, nullable=True)
 
     # Relationships
