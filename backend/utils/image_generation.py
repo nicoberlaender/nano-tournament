@@ -1,7 +1,7 @@
 from google import genai
 from google.genai import types
 import base64
-
+import os
 
 def generate_character_image(description: str) -> bytes:
     """
@@ -15,8 +15,8 @@ def generate_character_image(description: str) -> bytes:
     """
     client = genai.Client(
         vertexai=True,
-        project="tum-cdtm25mun-8766",
         location="global",
+        project=os.getenv("GEMINI_PROJECT_ID"),
     )
 
     si_text1 = """You will receive a description from the user of a character and should respond with an image in cartoon style suitable for a fighting game character."""
