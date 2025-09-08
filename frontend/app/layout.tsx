@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { MockProvider } from "@/context/mock-context";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AI Documentation Journey",
-  description: "Interactive AI-powered documentation explorer",
+  title: "AI Image Generation Battle Royale",
+  description: "Watch AI models compete in real-time image generation battles. Vote, engage, and witness the future of AI creativity.",
 };
 
 export default function RootLayout({
@@ -18,7 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <MockProvider>{children}</MockProvider>
+        {children}
       </body>
     </html>
   );
