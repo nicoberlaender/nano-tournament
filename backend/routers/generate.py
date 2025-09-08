@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from pydantic import BaseModel
 from datetime import datetime
 from models.database import Session, User, Character, get_db
 from utils.image_generation import generate_character_image
+from utils.websocket_manager import manager
 import uuid
 import base64
 
@@ -88,6 +89,9 @@ async def generate_character(
         await db.commit()
         await db.refresh(new_character)
 
+        # Check if both players now have characters and auto-start battle
+        await _check_and_start_battle_if_ready(db, session)
+
         # Convert image to base64 for response
         image_base64 = base64.b64encode(image_data).decode("utf-8")
 
@@ -142,4 +146,54 @@ async def get_character_image(character_id: str, db: AsyncSession = Depends(get_
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to retrieve character image: {str(e)}"
+        )
+
+
+async def _check_and_start_battle_if_ready(db: AsyncSession, session: Session):
+    """
+    Check if both players have created characters and automatically start the battle.
+
+    Args:
+        db: Database session
+        session: The game session to check
+    """
+    # Only proceed if session is active (has 2 players) and not already in battle
+    if session.status != "active" or not session.player2_id:
+        return
+
+    # Count characters for each player in this session
+    player1_char_count = await db.execute(
+        select(func.count(Character.id)).where(
+            Character.session_id == session.id,
+            Character.user_id == session.player1_id,
+        )
+    )
+    player1_chars = player1_char_count.scalar()
+
+    player2_char_count = await db.execute(
+        select(func.count(Character.id)).where(
+            Character.session_id == session.id,
+            Character.user_id == session.player2_id,
+        )
+    )
+    player2_chars = player2_char_count.scalar()
+
+    # If both players have at least one character, start the battle
+    if player1_chars > 0 and player2_chars > 0:
+        # Update session status to battle
+        session.status = "battle"
+        await db.commit()
+        await db.refresh(session)
+
+        # Add both users to the session for WebSocket messaging if not already added
+        manager.add_to_session(session.id, session.player1_id)
+        manager.add_to_session(session.id, session.player2_id)
+
+        # Send battle_start event to both players
+        await manager.send_session_message(
+            {
+                "type": "battle_start",
+                "session_id": session.id,
+            },
+            session.id,
         )

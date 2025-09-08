@@ -2,6 +2,8 @@
 
 ## Project Overview
 We are building a mobile fighting game where two players, each on their mobile phone, fight against each other using characters they create by prompting an AI image generator.
+We are creating an MVP, so the code should be as simple as possible!
+Never do any fallbacks or complex error handling, we want to fail fast and hard!
 
 ## Tech Stack
 - **Backend**: FastAPI with Python

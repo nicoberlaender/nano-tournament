@@ -91,6 +91,10 @@ class Battle(Base):
     player1_character_id = Column(String, ForeignKey("characters.id"))
     player2_character_id = Column(String, ForeignKey("characters.id"))
     winner_character_id = Column(String, ForeignKey("characters.id"), nullable=True)
+    battle_script = Column(
+        Text, nullable=True
+    )  # LLM's detailed battle script for video generation
+    battle_summary = Column(Text, nullable=True)  # LLM's battle description
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
 

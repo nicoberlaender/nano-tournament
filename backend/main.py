@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import session, generate
+from routers import session, generate, users, websocket, battle
 from models.database import init_db
 import os
 
@@ -31,8 +31,11 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(users.router)
 app.include_router(session.router)
 app.include_router(generate.router)
+app.include_router(websocket.router)
+app.include_router(battle.router)
 
 
 @app.get("/")

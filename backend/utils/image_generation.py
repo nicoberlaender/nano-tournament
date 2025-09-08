@@ -61,22 +61,22 @@ def generate_character_image(description: str) -> bytes:
 
 def generate_fight_condition() -> str:
     """
-    Generate a fight condition for the battle (MVP version with predefined conditions).
+    Generate a fight condition for the battle using LLM.
 
     Returns:
         str: A fight condition for the battle
     """
-    import random
+    from utils.llm_service import call_llm
 
-    conditions = [
-        "Battle in a mystical forest arena",
-        "Fight on a floating platform in the clouds",
-        "Duel in an ancient temple",
-        "Combat in a futuristic cyber arena",
-        "Battle in a volcanic crater",
-        "Fight in an underwater dome",
-        "Duel in a frozen wasteland",
-        "Combat in a neon-lit city rooftop",
-    ]
+    system_instruction = "You are a creative writer for a mobile fighting game. Generate a single, exciting battle arena/condition description in one sentence. Make it vivid and suitable for a fighting game."
 
-    return random.choice(conditions)
+    prompt = "Create an exciting battle arena or fighting condition for two AI-generated characters to fight in."
+
+    condition = call_llm(
+        prompt=prompt,
+        system_instruction=system_instruction,
+        temperature=0.9,  # High creativity
+        max_tokens=100,
+    )
+
+    return condition.strip()
