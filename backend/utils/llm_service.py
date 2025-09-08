@@ -2,7 +2,7 @@ from google import genai
 from google.genai import types
 import logging
 from typing import Optional
-
+import os
 logger = logging.getLogger(__name__)
 
 
@@ -28,7 +28,7 @@ def call_llm(
     """
     client = genai.Client(
         vertexai=True,
-        project="tum-cdtm25mun-8766",
+        project=os.getenv("GEMINI_PROJECT_ID"),
         location="global",
     )
 
