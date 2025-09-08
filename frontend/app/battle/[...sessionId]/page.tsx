@@ -32,11 +32,10 @@ export default function BattleSession() {
   const [currentPlayer, setCurrentPlayer] = useState<Participant | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [isJoining, setIsJoining] = useState(false);
-  const [battleStartTimer, setBattleStartTimer] = useState(5);
   const [prompt, setPrompt] = useState("");
   const [isCreatingCharacter, setIsCreatingCharacter] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
-  const [waitingTimer, setWaitingTimer] = useState(3);
+  const [isStartingGame, setIsStartingGame] = useState(false);
   const [battleResults, setBattleResults] = useState<BattleResults | null>(
     null
   );
@@ -44,7 +43,6 @@ export default function BattleSession() {
   const [userId] = useState(
     () => `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   );
-  const [realParticipants, setRealParticipants] = useState<string[]>([]);
 
   // WebSocket connection and event handlers
   useEffect(() => {
@@ -99,15 +97,22 @@ export default function BattleSession() {
 
     const handleUserJoined = (data: any) => {
       console.log("User joined session:", data);
-      setRealParticipants((prev) => [
-        ...prev.filter((id) => id !== data.user_id),
-        data.user_id,
-      ]);
+      if (data.user_id && data.name) {
+        const newParticipant: Participant = {
+          id: data.user_id,
+          name: data.name,
+          joinedAt: new Date(),
+        };
+        setParticipants((prev) => [
+          ...prev.filter((p) => p.id !== data.user_id),
+          newParticipant,
+        ]);
+      }
     };
 
     const handleUserLeft = (data: any) => {
       console.log("User left session:", data);
-      setRealParticipants((prev) => prev.filter((id) => id !== data.user_id));
+      setParticipants((prev) => prev.filter((p) => p.id !== data.user_id));
     };
 
     api.on("round_start", handleRoundStart);
@@ -125,52 +130,16 @@ export default function BattleSession() {
     };
   }, []);
 
-  // Update participants list with real and mock data
+  // Add current player to participants when joining
   useEffect(() => {
-    if (gameState === "lobby") {
-      const mockParticipants: Participant[] = [
-        { id: "1", name: "Alex Chen", joinedAt: new Date(Date.now() - 30000) },
-        {
-          id: "2",
-          name: "Maria Garcia",
-          joinedAt: new Date(Date.now() - 25000),
-        },
-      ];
-
-      let allParticipants = [...mockParticipants];
-      if (currentPlayer) {
-        allParticipants.push(currentPlayer);
-      }
-
-      setParticipants(allParticipants);
+    if (gameState === "lobby" && currentPlayer) {
+      setParticipants((prev) => [
+        ...prev.filter((p) => p.id !== currentPlayer.id),
+        currentPlayer,
+      ]);
     }
-  }, [gameState, currentPlayer, realParticipants]);
+  }, [gameState, currentPlayer]);
 
-  // Battle start timer
-  useEffect(() => {
-    if (gameState === "lobby" && battleStartTimer > 0) {
-      const timer = setTimeout(() => {
-        setBattleStartTimer((prev) => prev - 1);
-      }, 1000);
-
-      return () => clearTimeout(timer);
-    } else if (gameState === "lobby" && battleStartTimer === 0) {
-      setGameState("prompt");
-    }
-  }, [gameState, battleStartTimer]);
-
-  // Waiting for players timer
-  useEffect(() => {
-    if (gameState === "waiting" && waitingTimer > 0) {
-      const timer = setTimeout(() => {
-        setWaitingTimer((prev) => prev - 1);
-      }, 1000);
-
-      return () => clearTimeout(timer);
-    } else if (gameState === "waiting" && waitingTimer === 0) {
-      setGameState("battle");
-    }
-  }, [gameState, waitingTimer]);
 
   const handleJoinSession = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -278,14 +247,27 @@ export default function BattleSession() {
     }
   };
 
+  const handleStartGame = async () => {
+    if (!sessionId || participants.length < 2) return;
+    
+    setIsStartingGame(true);
+    try {
+      api.startRound(sessionId);
+    } catch (error) {
+      console.error("Failed to start game:", error);
+    } finally {
+      setIsStartingGame(false);
+    }
+  };
+
   if (gameState === "join") {
     return (
       <div
-        className="min-h-screen flex flex-col"
+        className="min-h-screen flex flex-col p-4"
         style={{ backgroundColor: "#B7B1F2" }}
       >
         <div className="w-full max-w-lg mx-auto flex flex-col justify-between min-h-screen p-4">
-          <div className="text-center pt-12">
+          <div className="text-center">
             <div className="text-8xl mb-6">🎮</div>
             <h1 className="text-5xl text-black mb-4 font-black">
               What is your name?
@@ -323,10 +305,13 @@ export default function BattleSession() {
 
   if (gameState === "lobby") {
     return (
-      <div className="min-h-screen p-4" style={{ backgroundColor: "#B7B1F2" }}>
-        <div className="max-w-6xl mx-auto">
+      <div
+        className="min-h-screen flex flex-col p-4"
+        style={{ backgroundColor: "#B7B1F2" }}
+      >
+        <div className="w-full max-w-6xl mx-auto flex flex-col justify-between min-h-screen p-4">
           {/* Header */}
-          <div className="text-center mb-12 pt-8">
+          <div className="text-center">
             <h1 className="text-5xl md:text-7xl font-black text-black mb-4">
               Waiting for Battle to Begin
             </h1>
@@ -335,7 +320,7 @@ export default function BattleSession() {
             </p>
 
             {/* Players List */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {participants.map((participant, index) => (
                 <div
                   key={participant.id}
@@ -360,22 +345,28 @@ export default function BattleSession() {
             </div>
           </div>
 
-          {/* Waiting Message with Timer */}
-          <div className="text-center">
-            <div
-              className="inline-flex items-center gap-4 px-8 py-4 rounded-2xl border-4 border-black"
+          {/* Start Game Button */}
+          <div className="text-center pb-12">
+            <Button
+              onClick={handleStartGame}
+              disabled={participants.length < 2 || isStartingGame}
+              className="text-2xl px-8 py-4 rounded-2xl font-black text-black hover:scale-105 transition-all duration-200 border-4 border-black disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: "#FDB7EA" }}
             >
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center font-black text-black text-xl border-2 border-black"
-                style={{ backgroundColor: "#FBF3B9" }}
-              >
-                {battleStartTimer}
-              </div>
-              <span className="text-black font-black text-2xl">
-                Battle starting in {battleStartTimer} seconds...
-              </span>
-            </div>
+              {isStartingGame ? (
+                <>
+                  <div className="w-6 h-6 rounded-full border-4 border-black border-t-transparent animate-spin mr-2"></div>
+                  Starting Game...
+                </>
+              ) : (
+                `Start Game (${participants.length} players)`
+              )}
+            </Button>
+            {participants.length < 2 && (
+              <p className="text-black font-bold text-lg mt-4">
+                Need at least 2 players to start
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -384,10 +375,13 @@ export default function BattleSession() {
 
   if (gameState === "prompt") {
     return (
-      <div className="min-h-screen p-4" style={{ backgroundColor: "#B7B1F2" }}>
-        <div className="w-full max-w-2xl mx-auto">
+      <div
+        className="min-h-screen flex flex-col p-4"
+        style={{ backgroundColor: "#B7B1F2" }}
+      >
+        <div className="w-full max-w-2xl mx-auto flex flex-col justify-between min-h-screen p-4">
           {/* Header */}
-          <div className="text-center pt-8 mb-8">
+          <div className="text-center">
             <Badge
               className="text-xl px-4 py-2 font-black border-4 border-black mb-6"
               style={{ backgroundColor: "#FDB7EA", color: "#000" }}
@@ -397,35 +391,35 @@ export default function BattleSession() {
             <p className="text-xl text-black font-bold">
               Describe your Fighter!
             </p>
-          </div>
 
-          {/* Image Display Area */}
-          <div className="w-full aspect-square max-w-md mx-auto mb-8">
-            <div
-              className="w-full h-full rounded-3xl border-4 border-black flex items-center justify-center overflow-hidden"
-              style={{
-                backgroundColor: generatedImage ? "transparent" : "#FBF3B9",
-              }}
-            >
-              {generatedImage ? (
-                <img
-                  src={generatedImage}
-                  alt="Generated Character"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="text-center">
-                  <div className="text-6xl mb-4 opacity-50">🖼️</div>
-                  <p className="text-black font-bold text-lg opacity-50">
-                    Your character will appear here
-                  </p>
-                </div>
-              )}
+            {/* Image Display Area */}
+            <div className="w-full aspect-square max-w-md mx-auto mt-8">
+              <div
+                className="w-full h-full rounded-3xl border-4 border-black flex items-center justify-center overflow-hidden"
+                style={{
+                  backgroundColor: generatedImage ? "transparent" : "#FBF3B9",
+                }}
+              >
+                {generatedImage ? (
+                  <img
+                    src={generatedImage}
+                    alt="Generated Character"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="text-center">
+                    <div className="text-6xl mb-4 opacity-50">🖼️</div>
+                    <p className="text-black font-bold text-lg opacity-50">
+                      Your character will appear here
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Input and Button Area */}
-          <form onSubmit={handleCreateCharacter} className="space-y-6">
+          <form onSubmit={handleCreateCharacter} className="space-y-6 pb-12">
             <div className="space-y-4">
               <label className="text-2xl font-bold text-black block">
                 Character Description
@@ -484,10 +478,13 @@ export default function BattleSession() {
 
   if (gameState === "waiting") {
     return (
-      <div className="min-h-screen p-4" style={{ backgroundColor: "#B7B1F2" }}>
-        <div className="w-full max-w-2xl mx-auto">
+      <div
+        className="min-h-screen flex flex-col p-4"
+        style={{ backgroundColor: "#B7B1F2" }}
+      >
+        <div className="w-full max-w-2xl mx-auto flex flex-col justify-between min-h-screen p-4">
           {/* Header */}
-          <div className="text-center pt-8 mb-8">
+          <div className="text-center">
             <Badge
               className="text-xl px-4 py-2 font-black border-4 border-black mb-6"
               style={{ backgroundColor: "#FDB7EA", color: "#000" }}
@@ -497,44 +494,44 @@ export default function BattleSession() {
             <h1 className="text-4xl md:text-5xl font-black text-black mb-4">
               Character Ready!
             </h1>
-            <p className="text-xl text-black font-bold">
+            <p className="text-xl text-black font-bold mb-8">
               Waiting for all players to finish...
             </p>
-          </div>
 
-          {/* Display the generated character */}
-          <div className="w-full aspect-square max-w-md mx-auto mb-8">
-            <div className="w-full h-full rounded-3xl border-4 border-black overflow-hidden">
-              {generatedImage && (
-                <img
-                  src={generatedImage}
-                  alt="Your Character"
-                  className="w-full h-full object-cover"
-                />
-              )}
+            {/* Display the generated character */}
+            <div className="w-full aspect-square max-w-md mx-auto mb-8">
+              <div className="w-full h-full rounded-3xl border-4 border-black overflow-hidden">
+                {generatedImage && (
+                  <img
+                    src={generatedImage}
+                    alt="Your Character"
+                    className="w-full h-full object-cover"
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Character description */}
+            <div className="text-center space-y-4">
+              <h2 className="text-2xl font-black text-black">Your Character</h2>
+              <div
+                className="p-4 rounded-2xl border-4 border-black"
+                style={{ backgroundColor: "#FBF3B9" }}
+              >
+                <p className="text-lg font-bold text-black">{prompt}</p>
+              </div>
             </div>
           </div>
 
-          {/* Character description */}
-          <div className="text-center space-y-4 mb-8">
-            <h2 className="text-2xl font-black text-black">Your Character</h2>
-            <div
-              className="p-4 rounded-2xl border-4 border-black"
-              style={{ backgroundColor: "#FBF3B9" }}
-            >
-              <p className="text-lg font-bold text-black">{prompt}</p>
-            </div>
-          </div>
-
-          {/* Waiting timer */}
-          <div className="text-center">
+          {/* Waiting status */}
+          <div className="text-center pb-12">
             <div
               className="inline-flex items-center gap-4 px-8 py-4 rounded-2xl border-4 border-black"
               style={{ backgroundColor: "#B7B1F2" }}
             >
               <div className="text-2xl">⏰</div>
               <span className="text-black font-black text-xl">
-                Battle starting in {waitingTimer} seconds...
+                Waiting for other players to finish...
               </span>
             </div>
           </div>
@@ -581,7 +578,7 @@ export default function BattleSession() {
               <div className="flex items-center gap-4">
                 <div className="text-right">
                   <div className="text-2xl font-black text-black">
-                    Alex Chen
+                    {participants.find(p => p.id !== currentPlayer?.id)?.name || "Opponent"}
                   </div>
                 </div>
               </div>
@@ -638,10 +635,13 @@ export default function BattleSession() {
 
   if (gameState === "results" && battleResults) {
     return (
-      <div className="min-h-screen p-4" style={{ backgroundColor: "#B7B1F2" }}>
-        <div className="w-full max-w-4xl mx-auto">
+      <div
+        className="min-h-screen flex flex-col p-4"
+        style={{ backgroundColor: "#B7B1F2" }}
+      >
+        <div className="w-full max-w-4xl mx-auto flex flex-col justify-between min-h-screen p-4">
           {/* Header */}
-          <div className="text-center pt-8 mb-12">
+          <div className="text-center">
             <Badge
               className="text-2xl px-6 py-3 font-black border-4 border-black mb-6"
               style={{ backgroundColor: "#FDB7EA", color: "#000" }}
@@ -653,47 +653,47 @@ export default function BattleSession() {
                 ? "🎉 Victory!"
                 : "💪 Good Fight!"}
             </h1>
-            <p className="text-2xl text-black font-bold">
+            <p className="text-2xl text-black font-bold mb-8">
               {battleResults.winner_user_id === userId
                 ? "You are the champion!"
-                : `Winner: ${battleResults.winner_user_id}`}
+                : `Winner: ${participants.find(p => p.id === battleResults.winner_user_id)?.name || battleResults.winner_user_id}`}
             </p>
-          </div>
 
-          {/* Battle Summary */}
-          <div className="mb-8">
-            <div
-              className="p-6 rounded-3xl border-4 border-black"
-              style={{ backgroundColor: "#FBF3B9" }}
-            >
-              <h2 className="text-2xl font-black text-black mb-4">
-                Battle Summary
-              </h2>
-              <p className="text-lg font-bold text-black leading-relaxed">
-                {battleResults.battle_summary}
-              </p>
-            </div>
-          </div>
-
-          {/* Battle Script */}
-          {battleResults.battle_script && (
+            {/* Battle Summary */}
             <div className="mb-8">
               <div
                 className="p-6 rounded-3xl border-4 border-black"
-                style={{ backgroundColor: "#B7B1F2" }}
+                style={{ backgroundColor: "#FBF3B9" }}
               >
                 <h2 className="text-2xl font-black text-black mb-4">
-                  Battle Story
+                  Battle Summary
                 </h2>
-                <div className="text-base font-bold text-black leading-relaxed whitespace-pre-wrap">
-                  {battleResults.battle_script}
-                </div>
+                <p className="text-lg font-bold text-black leading-relaxed">
+                  {battleResults.battle_summary}
+                </p>
               </div>
             </div>
-          )}
+
+            {/* Battle Script */}
+            {battleResults.battle_script && (
+              <div className="mb-8">
+                <div
+                  className="p-6 rounded-3xl border-4 border-black"
+                  style={{ backgroundColor: "#B7B1F2" }}
+                >
+                  <h2 className="text-2xl font-black text-black mb-4">
+                    Battle Story
+                  </h2>
+                  <div className="text-base font-bold text-black leading-relaxed whitespace-pre-wrap">
+                    {battleResults.battle_script}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Action Buttons */}
-          <div className="text-center space-y-4">
+          <div className="text-center space-y-4 pb-12">
             <Button
               onClick={() => (window.location.href = "/")}
               className="w-full md:w-auto text-xl px-8 py-4 rounded-2xl font-black text-black hover:scale-105 transition-all duration-200 border-4 border-black"

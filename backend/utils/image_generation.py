@@ -53,8 +53,7 @@ def generate_character_image(description: str) -> bytes:
     # Extract image data from response
     for part in response.candidates[0].content.parts:
         if hasattr(part, "inline_data") and part.inline_data:
-            # Decode base64 image data
-            return base64.b64decode(part.inline_data.data)
+            return part.inline_data.data
 
     raise ValueError("No image generated in response")
 
