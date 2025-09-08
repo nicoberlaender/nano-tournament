@@ -32,11 +32,10 @@ export default function BattleSession() {
   const [currentPlayer, setCurrentPlayer] = useState<Participant | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [isJoining, setIsJoining] = useState(false);
-  const [battleStartTimer, setBattleStartTimer] = useState(5);
   const [prompt, setPrompt] = useState("");
   const [isCreatingCharacter, setIsCreatingCharacter] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
-  const [waitingTimer, setWaitingTimer] = useState(3);
+  const [isStartingGame, setIsStartingGame] = useState(false);
   const [battleResults, setBattleResults] = useState<BattleResults | null>(
     null
   );
@@ -44,7 +43,6 @@ export default function BattleSession() {
   const [userId] = useState(
     () => `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   );
-  const [realParticipants, setRealParticipants] = useState<string[]>([]);
 
   // WebSocket connection and event handlers
   useEffect(() => {
@@ -99,15 +97,22 @@ export default function BattleSession() {
 
     const handleUserJoined = (data: any) => {
       console.log("User joined session:", data);
-      setRealParticipants((prev) => [
-        ...prev.filter((id) => id !== data.user_id),
-        data.user_id,
-      ]);
+      if (data.user_id && data.name) {
+        const newParticipant: Participant = {
+          id: data.user_id,
+          name: data.name,
+          joinedAt: new Date(),
+        };
+        setParticipants((prev) => [
+          ...prev.filter((p) => p.id !== data.user_id),
+          newParticipant,
+        ]);
+      }
     };
 
     const handleUserLeft = (data: any) => {
       console.log("User left session:", data);
-      setRealParticipants((prev) => prev.filter((id) => id !== data.user_id));
+      setParticipants((prev) => prev.filter((p) => p.id !== data.user_id));
     };
 
     api.on("round_start", handleRoundStart);
@@ -125,52 +130,16 @@ export default function BattleSession() {
     };
   }, []);
 
-  // Update participants list with real and mock data
+  // Add current player to participants when joining
   useEffect(() => {
-    if (gameState === "lobby") {
-      const mockParticipants: Participant[] = [
-        { id: "1", name: "Alex Chen", joinedAt: new Date(Date.now() - 30000) },
-        {
-          id: "2",
-          name: "Maria Garcia",
-          joinedAt: new Date(Date.now() - 25000),
-        },
-      ];
-
-      let allParticipants = [...mockParticipants];
-      if (currentPlayer) {
-        allParticipants.push(currentPlayer);
-      }
-
-      setParticipants(allParticipants);
+    if (gameState === "lobby" && currentPlayer) {
+      setParticipants((prev) => [
+        ...prev.filter((p) => p.id !== currentPlayer.id),
+        currentPlayer,
+      ]);
     }
-  }, [gameState, currentPlayer, realParticipants]);
+  }, [gameState, currentPlayer]);
 
-  // Battle start timer
-  useEffect(() => {
-    if (gameState === "lobby" && battleStartTimer > 0) {
-      const timer = setTimeout(() => {
-        setBattleStartTimer((prev) => prev - 1);
-      }, 1000);
-
-      return () => clearTimeout(timer);
-    } else if (gameState === "lobby" && battleStartTimer === 0) {
-      setGameState("prompt");
-    }
-  }, [gameState, battleStartTimer]);
-
-  // Waiting for players timer
-  useEffect(() => {
-    if (gameState === "waiting" && waitingTimer > 0) {
-      const timer = setTimeout(() => {
-        setWaitingTimer((prev) => prev - 1);
-      }, 1000);
-
-      return () => clearTimeout(timer);
-    } else if (gameState === "waiting" && waitingTimer === 0) {
-      setGameState("battle");
-    }
-  }, [gameState, waitingTimer]);
 
   const handleJoinSession = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -278,6 +247,19 @@ export default function BattleSession() {
     }
   };
 
+  const handleStartGame = async () => {
+    if (!sessionId || participants.length < 2) return;
+    
+    setIsStartingGame(true);
+    try {
+      api.startRound(sessionId);
+    } catch (error) {
+      console.error("Failed to start game:", error);
+    } finally {
+      setIsStartingGame(false);
+    }
+  };
+
   if (gameState === "join") {
     return (
       <div
@@ -363,22 +345,28 @@ export default function BattleSession() {
             </div>
           </div>
 
-          {/* Waiting Message with Timer */}
+          {/* Start Game Button */}
           <div className="text-center pb-12">
-            <div
-              className="inline-flex items-center gap-4 px-8 py-4 rounded-2xl border-4 border-black"
+            <Button
+              onClick={handleStartGame}
+              disabled={participants.length < 2 || isStartingGame}
+              className="text-2xl px-8 py-4 rounded-2xl font-black text-black hover:scale-105 transition-all duration-200 border-4 border-black disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: "#FDB7EA" }}
             >
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center font-black text-black text-xl border-2 border-black"
-                style={{ backgroundColor: "#FBF3B9" }}
-              >
-                {battleStartTimer}
-              </div>
-              <span className="text-black font-black text-2xl">
-                Battle starting in {battleStartTimer} seconds...
-              </span>
-            </div>
+              {isStartingGame ? (
+                <>
+                  <div className="w-6 h-6 rounded-full border-4 border-black border-t-transparent animate-spin mr-2"></div>
+                  Starting Game...
+                </>
+              ) : (
+                `Start Game (${participants.length} players)`
+              )}
+            </Button>
+            {participants.length < 2 && (
+              <p className="text-black font-bold text-lg mt-4">
+                Need at least 2 players to start
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -535,7 +523,7 @@ export default function BattleSession() {
             </div>
           </div>
 
-          {/* Waiting timer */}
+          {/* Waiting status */}
           <div className="text-center pb-12">
             <div
               className="inline-flex items-center gap-4 px-8 py-4 rounded-2xl border-4 border-black"
@@ -543,7 +531,7 @@ export default function BattleSession() {
             >
               <div className="text-2xl">⏰</div>
               <span className="text-black font-black text-xl">
-                Battle starting in {waitingTimer} seconds...
+                Waiting for other players to finish...
               </span>
             </div>
           </div>
@@ -590,7 +578,7 @@ export default function BattleSession() {
               <div className="flex items-center gap-4">
                 <div className="text-right">
                   <div className="text-2xl font-black text-black">
-                    Alex Chen
+                    {participants.find(p => p.id !== currentPlayer?.id)?.name || "Opponent"}
                   </div>
                 </div>
               </div>
@@ -668,7 +656,7 @@ export default function BattleSession() {
             <p className="text-2xl text-black font-bold mb-8">
               {battleResults.winner_user_id === userId
                 ? "You are the champion!"
-                : `Winner: ${battleResults.winner_user_id}`}
+                : `Winner: ${participants.find(p => p.id === battleResults.winner_user_id)?.name || battleResults.winner_user_id}`}
             </p>
 
             {/* Battle Summary */}
