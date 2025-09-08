@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, Gamepad2, Crown, Sparkles, ImageIcon } from "lucide-react";
+import { Users, Gamepad2, Crown, Sparkles, ImageIcon, Play, Clock } from "lucide-react";
 
 interface Participant {
   id: string;
@@ -32,6 +32,7 @@ export default function BattleSession() {
   const [prompt, setPrompt] = useState("");
   const [isCreatingCharacter, setIsCreatingCharacter] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [waitingTimer, setWaitingTimer] = useState(3);
 
   // Mock participants for lobby demo
   useEffect(() => {
@@ -65,6 +66,19 @@ export default function BattleSession() {
       setGameState("prompt");
     }
   }, [gameState, battleStartTimer]);
+
+  // Waiting for players timer
+  useEffect(() => {
+    if (gameState === "waiting" && waitingTimer > 0) {
+      const timer = setTimeout(() => {
+        setWaitingTimer((prev) => prev - 1);
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    } else if (gameState === "waiting" && waitingTimer === 0) {
+      setGameState("battle");
+    }
+  }, [gameState, waitingTimer]);
 
   const handleJoinSession = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,6 +114,7 @@ export default function BattleSession() {
       "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='400' height='400' fill='%23FBF3B9'/%3E%3Ctext x='200' y='200' text-anchor='middle' dominant-baseline='middle' font-size='20' fill='%23000'%3EGenerated Character%3C/text%3E%3C/svg%3E"
     );
     setIsCreatingCharacter(false);
+    setGameState("waiting");
   };
 
   if (gameState === "join") {
@@ -404,29 +419,199 @@ export default function BattleSession() {
 
               {/* Optional: Add regenerate button if character exists */}
               {generatedImage && !isCreatingCharacter && (
-                <div className="space-y-4">
-                  <Button
-                    onClick={() =>
-                      handleCreateCharacter(new Event("submit") as any)
-                    }
-                    className="w-full text-xl py-4 rounded-2xl font-black text-black hover:scale-105 transition-all duration-200 border-4 border-black"
-                    style={{ backgroundColor: "#B7B1F2" }}
-                  >
-                    Regenerate Character
-                  </Button>
-                  <Button
-                    onClick={() => setGameState("battle")}
-                    className="w-full text-xl py-4 rounded-2xl font-black text-black hover:scale-105 transition-all duration-200 border-4 border-black"
-                    style={{ backgroundColor: "#FBF3B9" }}
-                  >
-                    Continue to Battle
-                  </Button>
-                </div>
+                <Button
+                  onClick={() =>
+                    handleCreateCharacter(new Event("submit") as any)
+                  }
+                  className="w-full text-xl py-4 rounded-2xl font-black text-black hover:scale-105 transition-all duration-200 border-4 border-black"
+                  style={{ backgroundColor: "#B7B1F2" }}
+                >
+                  Regenerate Character
+                </Button>
               )}
             </CardContent>
           </Card>
         </div>
       </div>
+    );
+  }
+
+  if (gameState === "waiting") {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center p-4"
+        style={{ backgroundColor: "#B7B1F2" }}
+      >
+        <div className="w-full max-w-2xl">
+          <Card
+            className="border-4 border-black shadow-2xl"
+            style={{ backgroundColor: "#FFDCCC" }}
+          >
+            {/* Header */}
+            <div className="text-center p-8">
+              <Badge
+                className="text-xl p-2 font-black border-4 border-black mb-6"
+                style={{ backgroundColor: "#FDB7EA", color: "#000" }}
+              >
+                <Sparkles className="w-5 h-5 mr-2" />
+                Round 1
+              </Badge>
+              <h1 className="text-4xl md:text-5xl font-black text-black mb-4">
+                Character Ready!
+              </h1>
+              <p className="text-xl text-black font-bold">
+                Waiting for all players to finish...
+              </p>
+            </div>
+
+            <CardContent className="p-8 space-y-8">
+              {/* Display the generated character */}
+              <div className="w-full aspect-square max-w-md mx-auto">
+                <div className="w-full h-full rounded-3xl border-4 border-black overflow-hidden">
+                  {generatedImage && (
+                    <img
+                      src={generatedImage}
+                      alt="Your Character"
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Character description */}
+              <div className="text-center space-y-4">
+                <h2 className="text-2xl font-black text-black">Your Character</h2>
+                <div 
+                  className="p-4 rounded-2xl border-4 border-black"
+                  style={{ backgroundColor: "#FBF3B9" }}
+                >
+                  <p className="text-lg font-bold text-black">{prompt}</p>
+                </div>
+              </div>
+
+              {/* Waiting timer */}
+              <div className="text-center">
+                <div
+                  className="inline-flex items-center gap-4 px-8 py-4 rounded-2xl border-4 border-black"
+                  style={{ backgroundColor: "#B7B1F2" }}
+                >
+                  <Clock className="w-6 h-6 text-black" />
+                  <span className="text-black font-black text-xl">
+                    Battle starting in {waitingTimer} seconds...
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (gameState === "battle") {
+    return (
+      <>
+        <style jsx>{`
+          @keyframes slide {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(40px); }
+          }
+        `}</style>
+        <div
+          className="min-h-screen"
+          style={{ backgroundColor: "#B7B1F2" }}
+        >
+        {/* Battle Header - Player vs Player */}
+        <div className="w-full p-6 border-b-4 border-black" style={{ backgroundColor: "#FFDCCC" }}>
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            {/* Player 1 */}
+            <div className="flex items-center gap-4">
+              <Avatar className="w-16 h-16">
+                <AvatarFallback
+                  className="text-black font-black text-xl border-4 border-black"
+                  style={{ backgroundColor: "#FDB7EA" }}
+                >
+                  {currentPlayer?.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <div className="text-2xl font-black text-black">{currentPlayer?.name}</div>
+                <div className="text-lg font-bold text-black opacity-75">You</div>
+              </div>
+            </div>
+
+            {/* VS Badge */}
+            <Badge
+              className="text-3xl px-8 py-4 font-black border-4 border-black"
+              style={{ backgroundColor: "#FBF3B9", color: "#000" }}
+            >
+              VS
+            </Badge>
+
+            {/* Player 2 (Opponent) */}
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <div className="text-2xl font-black text-black">Alex Chen</div>
+                <div className="text-lg font-bold text-black opacity-75">Opponent</div>
+              </div>
+              <Avatar className="w-16 h-16">
+                <AvatarFallback
+                  className="text-black font-black text-xl border-4 border-black"
+                  style={{ backgroundColor: "#B7B1F2" }}
+                >
+                  AC
+                </AvatarFallback>
+              </Avatar>
+            </div>
+          </div>
+        </div>
+
+        {/* Battle Video Area */}
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="w-full max-w-4xl aspect-video">
+            <div
+              className="w-full h-full rounded-3xl border-4 border-black flex items-center justify-center relative overflow-hidden"
+              style={{ backgroundColor: "#000" }}
+            >
+              {/* Mock video background */}
+              <div 
+                className="absolute inset-0 opacity-20"
+                style={{
+                  background: "linear-gradient(45deg, #FDB7EA 25%, #FBF3B9 25%, #FBF3B9 50%, #FDB7EA 50%, #FDB7EA 75%, #FBF3B9 75%)",
+                  backgroundSize: "40px 40px",
+                  animation: "slide 2s linear infinite"
+                }}
+              />
+              
+              {/* Play indicator */}
+              <div className="text-center z-10">
+                <div 
+                  className="w-24 h-24 rounded-full flex items-center justify-center mb-4 mx-auto border-4 border-white"
+                  style={{ backgroundColor: "#FDB7EA" }}
+                >
+                  <Play className="w-12 h-12 text-black ml-1" />
+                </div>
+                <p className="text-white font-black text-2xl">Battle in Progress</p>
+                <p className="text-white font-bold text-lg opacity-75">Epic showdown between characters!</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Battle Status */}
+        <div className="p-6">
+          <div className="max-w-4xl mx-auto text-center">
+            <Badge
+              className="text-xl px-6 py-3 font-black border-4 border-black"
+              style={{ backgroundColor: "#FDB7EA", color: "#000" }}
+            >
+              <Sparkles className="w-5 h-5 mr-2" />
+              Round 1 of 3
+            </Badge>
+          </div>
+        </div>
+      </div>
+      </>
     );
   }
 
