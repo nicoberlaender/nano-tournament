@@ -281,11 +281,11 @@ export default function BattleSession() {
   if (gameState === "join") {
     return (
       <div
-        className="min-h-screen flex flex-col"
+        className="min-h-screen flex flex-col p-4"
         style={{ backgroundColor: "#B7B1F2" }}
       >
         <div className="w-full max-w-lg mx-auto flex flex-col justify-between min-h-screen p-4">
-          <div className="text-center pt-12">
+          <div className="text-center">
             <div className="text-8xl mb-6">🎮</div>
             <h1 className="text-5xl text-black mb-4 font-black">
               What is your name?
@@ -323,10 +323,13 @@ export default function BattleSession() {
 
   if (gameState === "lobby") {
     return (
-      <div className="min-h-screen p-4" style={{ backgroundColor: "#B7B1F2" }}>
-        <div className="max-w-6xl mx-auto">
+      <div
+        className="min-h-screen flex flex-col p-4"
+        style={{ backgroundColor: "#B7B1F2" }}
+      >
+        <div className="w-full max-w-6xl mx-auto flex flex-col justify-between min-h-screen p-4">
           {/* Header */}
-          <div className="text-center mb-12 pt-8">
+          <div className="text-center">
             <h1 className="text-5xl md:text-7xl font-black text-black mb-4">
               Waiting for Battle to Begin
             </h1>
@@ -335,7 +338,7 @@ export default function BattleSession() {
             </p>
 
             {/* Players List */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {participants.map((participant, index) => (
                 <div
                   key={participant.id}
@@ -361,7 +364,7 @@ export default function BattleSession() {
           </div>
 
           {/* Waiting Message with Timer */}
-          <div className="text-center">
+          <div className="text-center pb-12">
             <div
               className="inline-flex items-center gap-4 px-8 py-4 rounded-2xl border-4 border-black"
               style={{ backgroundColor: "#FDB7EA" }}
@@ -384,10 +387,13 @@ export default function BattleSession() {
 
   if (gameState === "prompt") {
     return (
-      <div className="min-h-screen p-4" style={{ backgroundColor: "#B7B1F2" }}>
-        <div className="w-full max-w-2xl mx-auto">
+      <div
+        className="min-h-screen flex flex-col p-4"
+        style={{ backgroundColor: "#B7B1F2" }}
+      >
+        <div className="w-full max-w-2xl mx-auto flex flex-col justify-between min-h-screen p-4">
           {/* Header */}
-          <div className="text-center pt-8 mb-8">
+          <div className="text-center">
             <Badge
               className="text-xl px-4 py-2 font-black border-4 border-black mb-6"
               style={{ backgroundColor: "#FDB7EA", color: "#000" }}
@@ -397,35 +403,35 @@ export default function BattleSession() {
             <p className="text-xl text-black font-bold">
               Describe your Fighter!
             </p>
-          </div>
 
-          {/* Image Display Area */}
-          <div className="w-full aspect-square max-w-md mx-auto mb-8">
-            <div
-              className="w-full h-full rounded-3xl border-4 border-black flex items-center justify-center overflow-hidden"
-              style={{
-                backgroundColor: generatedImage ? "transparent" : "#FBF3B9",
-              }}
-            >
-              {generatedImage ? (
-                <img
-                  src={generatedImage}
-                  alt="Generated Character"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="text-center">
-                  <div className="text-6xl mb-4 opacity-50">🖼️</div>
-                  <p className="text-black font-bold text-lg opacity-50">
-                    Your character will appear here
-                  </p>
-                </div>
-              )}
+            {/* Image Display Area */}
+            <div className="w-full aspect-square max-w-md mx-auto mt-8">
+              <div
+                className="w-full h-full rounded-3xl border-4 border-black flex items-center justify-center overflow-hidden"
+                style={{
+                  backgroundColor: generatedImage ? "transparent" : "#FBF3B9",
+                }}
+              >
+                {generatedImage ? (
+                  <img
+                    src={generatedImage}
+                    alt="Generated Character"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="text-center">
+                    <div className="text-6xl mb-4 opacity-50">🖼️</div>
+                    <p className="text-black font-bold text-lg opacity-50">
+                      Your character will appear here
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Input and Button Area */}
-          <form onSubmit={handleCreateCharacter} className="space-y-6">
+          <form onSubmit={handleCreateCharacter} className="space-y-6 pb-12">
             <div className="space-y-4">
               <label className="text-2xl font-bold text-black block">
                 Character Description
@@ -484,10 +490,13 @@ export default function BattleSession() {
 
   if (gameState === "waiting") {
     return (
-      <div className="min-h-screen p-4" style={{ backgroundColor: "#B7B1F2" }}>
-        <div className="w-full max-w-2xl mx-auto">
+      <div
+        className="min-h-screen flex flex-col p-4"
+        style={{ backgroundColor: "#B7B1F2" }}
+      >
+        <div className="w-full max-w-2xl mx-auto flex flex-col justify-between min-h-screen p-4">
           {/* Header */}
-          <div className="text-center pt-8 mb-8">
+          <div className="text-center">
             <Badge
               className="text-xl px-4 py-2 font-black border-4 border-black mb-6"
               style={{ backgroundColor: "#FDB7EA", color: "#000" }}
@@ -497,37 +506,37 @@ export default function BattleSession() {
             <h1 className="text-4xl md:text-5xl font-black text-black mb-4">
               Character Ready!
             </h1>
-            <p className="text-xl text-black font-bold">
+            <p className="text-xl text-black font-bold mb-8">
               Waiting for all players to finish...
             </p>
-          </div>
 
-          {/* Display the generated character */}
-          <div className="w-full aspect-square max-w-md mx-auto mb-8">
-            <div className="w-full h-full rounded-3xl border-4 border-black overflow-hidden">
-              {generatedImage && (
-                <img
-                  src={generatedImage}
-                  alt="Your Character"
-                  className="w-full h-full object-cover"
-                />
-              )}
+            {/* Display the generated character */}
+            <div className="w-full aspect-square max-w-md mx-auto mb-8">
+              <div className="w-full h-full rounded-3xl border-4 border-black overflow-hidden">
+                {generatedImage && (
+                  <img
+                    src={generatedImage}
+                    alt="Your Character"
+                    className="w-full h-full object-cover"
+                  />
+                )}
+              </div>
             </div>
-          </div>
 
-          {/* Character description */}
-          <div className="text-center space-y-4 mb-8">
-            <h2 className="text-2xl font-black text-black">Your Character</h2>
-            <div
-              className="p-4 rounded-2xl border-4 border-black"
-              style={{ backgroundColor: "#FBF3B9" }}
-            >
-              <p className="text-lg font-bold text-black">{prompt}</p>
+            {/* Character description */}
+            <div className="text-center space-y-4">
+              <h2 className="text-2xl font-black text-black">Your Character</h2>
+              <div
+                className="p-4 rounded-2xl border-4 border-black"
+                style={{ backgroundColor: "#FBF3B9" }}
+              >
+                <p className="text-lg font-bold text-black">{prompt}</p>
+              </div>
             </div>
           </div>
 
           {/* Waiting timer */}
-          <div className="text-center">
+          <div className="text-center pb-12">
             <div
               className="inline-flex items-center gap-4 px-8 py-4 rounded-2xl border-4 border-black"
               style={{ backgroundColor: "#B7B1F2" }}
@@ -638,10 +647,13 @@ export default function BattleSession() {
 
   if (gameState === "results" && battleResults) {
     return (
-      <div className="min-h-screen p-4" style={{ backgroundColor: "#B7B1F2" }}>
-        <div className="w-full max-w-4xl mx-auto">
+      <div
+        className="min-h-screen flex flex-col p-4"
+        style={{ backgroundColor: "#B7B1F2" }}
+      >
+        <div className="w-full max-w-4xl mx-auto flex flex-col justify-between min-h-screen p-4">
           {/* Header */}
-          <div className="text-center pt-8 mb-12">
+          <div className="text-center">
             <Badge
               className="text-2xl px-6 py-3 font-black border-4 border-black mb-6"
               style={{ backgroundColor: "#FDB7EA", color: "#000" }}
@@ -653,47 +665,47 @@ export default function BattleSession() {
                 ? "🎉 Victory!"
                 : "💪 Good Fight!"}
             </h1>
-            <p className="text-2xl text-black font-bold">
+            <p className="text-2xl text-black font-bold mb-8">
               {battleResults.winner_user_id === userId
                 ? "You are the champion!"
                 : `Winner: ${battleResults.winner_user_id}`}
             </p>
-          </div>
 
-          {/* Battle Summary */}
-          <div className="mb-8">
-            <div
-              className="p-6 rounded-3xl border-4 border-black"
-              style={{ backgroundColor: "#FBF3B9" }}
-            >
-              <h2 className="text-2xl font-black text-black mb-4">
-                Battle Summary
-              </h2>
-              <p className="text-lg font-bold text-black leading-relaxed">
-                {battleResults.battle_summary}
-              </p>
-            </div>
-          </div>
-
-          {/* Battle Script */}
-          {battleResults.battle_script && (
+            {/* Battle Summary */}
             <div className="mb-8">
               <div
                 className="p-6 rounded-3xl border-4 border-black"
-                style={{ backgroundColor: "#B7B1F2" }}
+                style={{ backgroundColor: "#FBF3B9" }}
               >
                 <h2 className="text-2xl font-black text-black mb-4">
-                  Battle Story
+                  Battle Summary
                 </h2>
-                <div className="text-base font-bold text-black leading-relaxed whitespace-pre-wrap">
-                  {battleResults.battle_script}
-                </div>
+                <p className="text-lg font-bold text-black leading-relaxed">
+                  {battleResults.battle_summary}
+                </p>
               </div>
             </div>
-          )}
+
+            {/* Battle Script */}
+            {battleResults.battle_script && (
+              <div className="mb-8">
+                <div
+                  className="p-6 rounded-3xl border-4 border-black"
+                  style={{ backgroundColor: "#B7B1F2" }}
+                >
+                  <h2 className="text-2xl font-black text-black mb-4">
+                    Battle Story
+                  </h2>
+                  <div className="text-base font-bold text-black leading-relaxed whitespace-pre-wrap">
+                    {battleResults.battle_script}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Action Buttons */}
-          <div className="text-center space-y-4">
+          <div className="text-center space-y-4 pb-12">
             <Button
               onClick={() => (window.location.href = "/")}
               className="w-full md:w-auto text-xl px-8 py-4 rounded-2xl font-black text-black hover:scale-105 transition-all duration-200 border-4 border-black"

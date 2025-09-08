@@ -32,12 +32,14 @@ export default function Home() {
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+      const userId = `user_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
+
       // Create a new session
       const response = await fetch(`${apiUrl}/session/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userId }),
       });
 
@@ -46,12 +48,15 @@ export default function Home() {
         // Navigate to the new session
         router.push(`/battle/${data.session_id}`);
       } else {
-        throw new Error('Failed to create session');
+        throw new Error("Failed to create session");
       }
     } catch (error) {
-      console.error('Failed to create session:', error);
+      console.error("Failed to create session:", error);
       // Fallback: Generate a random session code
-      const randomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const randomCode = Math.random()
+        .toString(36)
+        .substring(2, 8)
+        .toUpperCase();
       router.push(`/battle/${randomCode}`);
     } finally {
       setIsCreating(false);
@@ -59,13 +64,18 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen p-4" style={{ backgroundColor: "#B7B1F2" }}>
-      <div className="w-full max-w-lg mx-auto">
+    <div
+      className="min-h-screen flex flex-col p-4"
+      style={{ backgroundColor: "#B7B1F2" }}
+    >
+      <div className="w-full max-w-lg mx-auto flex flex-col justify-between min-h-screen p-4">
         {/* Header */}
-        <div className="text-center space-y-8 pt-16 pb-12">
+        <div className="text-center space-y-8">
           <div className="text-8xl mb-8">🤖</div>
           <div>
-            <h1 className="text-5xl text-black mb-4 font-black">Nano Tournament</h1>
+            <h1 className="text-5xl text-black mb-4 font-black">
+              Nano Tournament
+            </h1>
             <p className="text-2xl text-black font-bold">
               Join or create a battle session
             </p>
@@ -73,7 +83,7 @@ export default function Home() {
         </div>
 
         {/* Centered Input and Button */}
-        <div className="flex flex-col items-center justify-center min-h-[40vh] space-y-8">
+        <div className="flex flex-col items-center justify-center space-y-8 pb-12">
           {/* Create New Session Button */}
           <Button
             onClick={handleCreateSession}
@@ -98,14 +108,18 @@ export default function Home() {
                 Enter 6-digit session code
               </p>
             </div>
-            <div className="flex justify-center px-4">
+            <div className="flex justify-center">
               <OneTimePasswordField
                 value={sessionCode}
                 onValueChange={(value) => setSessionCode(value.toUpperCase())}
-                className="gap-3"
+                className="gap-2"
               >
                 {Array.from({ length: 6 }, (_, index) => (
-                  <OneTimePasswordFieldInput key={index} index={index} />
+                  <OneTimePasswordFieldInput
+                    key={index}
+                    index={index}
+                    className="w-14 h-20"
+                  />
                 ))}
               </OneTimePasswordField>
             </div>
